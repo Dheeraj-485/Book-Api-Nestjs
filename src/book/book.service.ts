@@ -1,6 +1,8 @@
 import {
   BadGatewayException,
+  BadRequestException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
 import { CreateBookDto } from './dto/create-book.dto';
@@ -17,42 +19,77 @@ export class BookService {
   ) {}
 
   create(createBookDto: CreateBookDto) {
-    const book = new Book();
-    book.name = createBookDto.name;
-    book.description = createBookDto.description;
-    book.author = createBookDto.author;
-    book.price = createBookDto.price;
-    return this.bookRepository.save(book);
+    try {
+      const book = new Book();
+      book.name = createBookDto.name;
+      book.description = createBookDto.description;
+      book.author = createBookDto.author;
+      book.price = createBookDto.price;
+      return this.bookRepository.save(book);
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to create book');
+    }
   }
 
   findAll(): Promise<Book[]> {
-    return this.bookRepository.find();
+    try {
+      return this.bookRepository.find();
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to fetch books');
+    }
   }
 
   async findOne(id: number) {
-    const book = await this.bookRepository.findOne({ where: { id } });
-    if (!book) {
-      throw new BadGatewayException('Book not found');
+    if (!id) {
+      throw new BadRequestException('Id must be provided');
     }
-    return book;
+    try {
+      const book = await this.bookRepository.findOne({ where: { id } });
+      if (!book) {
+        throw new NotFoundException(`Book with id ${id} not found`);
+      }
+      return book;
+    } catch (error) {
+      throw new InternalServerErrorException('Failed to fetch a book');
+    }
   }
 
   async update(id: number, updateBookDto: UpdateBookDto) {
+    if (!id) {
+      throw new BadRequestException('Id must be provided');
+    }
     const existingBook = await this.bookRepository.findOne({ where: { id } });
 
     if (!existingBook) {
-      throw new NotFoundException('Id not found');
+      throw new NotFoundException(`Book with id ${id} not found`);
     }
-    await this.bookRepository.update(id, updateBookDto);
-    return { ...existingBook, ...updateBookDto };
+    try {
+      await this.bookRepository.update(id, updateBookDto);
+      return { ...existingBook, ...updateBookDto };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to update book',
+        error.message,
+      );
+    }
   }
 
   async remove(id: number) {
+    if (!id) {
+      throw new BadRequestException('Id must be provided');
+    }
     const find = await this.bookRepository.findOne({ where: { id } });
     if (!find) {
-      throw new NotFoundException('Not found');
+      throw new NotFoundException(`Book with id ${id} not found`);
     }
-    await this.bookRepository.delete(id);
-    return { message: 'Book deleted' };
+    try {
+      await this.bookRepository.delete(id);
+      return { message: 'Book deleted successfully' };
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Failed to delete book',
+        error.message,
+      );
+    }
   }
 }
